@@ -1,1 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>VG Matchmaking BR</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a18; --surface: #111120; --border: #1e1e3a; --text: #7070a0; --white: #f0f0ff; --yellow: #ffe04b; --green: #39ff7e; --red: #ff5555; --blue: #3bbfff;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; margin: 0; padding: 0; }
+  .header { border-bottom: 1px solid var(--border); padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; color: var(--text); }
+  .tab.active { color: var(--yellow); border-bottom: 2px solid var(--yellow); }
+  .page { display: none; padding: 20px; }
+  .page.active { display: block; }
+  .btn { width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+  .btn-green { background: #1a3325; color: var(--green); border: 1px solid var(--green); }
+  .btn-blue { background: #0d2233; color: var(--blue); border: 1px solid var(--blue); }
+  .btn-red { background: #2d1010; color: var(--red); border: 1px solid var(--red); }
+  .player-info { margin-bottom: 30px; }
+  .player-nick { font-size: 28px; color: var(--white); }
+  .player-fc { font-size: 18px; color: var(--yellow); }
+  .fraud-alert { color: var(--red); font-size: 12px; margin-top: 5px; }
+  .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; font-size: 14px; }
+  .queue-label { color: var(--text); }
+  .queue-count { color: var(--yellow); font-weight: bold; }
+  .queue-searching { display: flex; align-items: center; gap: 8px; color: var(--green); font-size: 12px; }
+  .searching-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .exposed-box { background: rgba(255, 85, 85, 0.1); border: 1px solid var(--red); padding: 10px; border-radius: 8px; margin-top: 20px; }
+  .exposed-title { color: var(--red); font-size: 10px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
+  .exposed-list { font-size: 12px; color: var(--white); }
+  .rank-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="header">
+  <div style="color:var(--yellow); font-weight:bold;">⚡ VG BR</div>
+  <div id="online-count" style="font-size:12px;">0 online</div>
+</div>
+<div class="tabs">
+  <div class="tab active" onclick="showPage('lobby')">SAGUÃO</div>
+  <div class="tab" onclick="showPage('profile')">PERFIL</div>
+  <div class="tab" onclick="showPage('ranking')">RANKING</div>
+</div>
 
+<div id="lobby" class="page active">
+  <div class="player-info">
+    <div id="me-nick" class="player-nick">...</div>
+    <div id="me-fc" class="player-fc">...</div>
+    <div id="me-fraud" class="fraud-alert"></div>
+  </div>
+  
+  <div style="margin-bottom: 30px;">
+    <div class="queue-item">
+      <span class="queue-label">🎯 3v3 Ranked</span>
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <span id="queue-3v3-count" class="queue-count">0/6</span>
+        <div id="queue-3v3-searching" class="queue-searching" style="display: none;">
+          <span class="searching-dot"></span>
+          <span>buscando</span>
+        </div>
+      </div>
+    </div>
+    <div class="queue-item">
+      <span class="queue-label">🔥 5v5 Casual</span>
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <span id="queue-5v5-count" class="queue-count">0/10</span>
+        <div id="queue-5v5-searching" class="queue-searching" style="display: none;">
+          <span class="searching-dot"></span>
+          <span>buscando</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <button class="btn btn-green" onclick="joinQueue('3v3')">ENTRAR 3v3 RANKED</button>
+  <button class="btn btn-blue" onclick="joinQueue('5v5')">ENTRAR 5v5 CASUAL</button>
+  <button class="btn btn-red" onclick="leaveQueue()">SAIR DA FILA</button>
+
+  <div id="exposed-section" class="exposed-box" style="display: none;">
+    <div class="exposed-title">💀 Jogadores Expostos por Fraude</div>
+    <div id="exposed-list" class="exposed-list"></div>
+  </div>
+</div>
+
+<div id="profile" class="page">
+  <div class="player-info">
+    <div id="prof-nick" class="player-nick">...</div>
+    <div id="prof-stats" style="color:var(--white); margin-top:10px;"></div>
+  </div>
+</div>
+
+<div id="ranking" class="page">
+  <div id="rank-list"></div>
+</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+const socket = io();
+const USER_ID = tg.initDataUnsafe.user?.id || 123;
+
+let playerStatus = { inQueue3v3: false, inQueue5v5: false };
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+socket.on('state_update', (state) => {
+  document.getElementById('online-count').innerText = `${state.online} online`;
+  document.getElementById('queue-3v3-count').innerText = `${state.queue3v3}/6`;
+  document.getElementById('queue-5v5-count').innerText = `${state.queue5v5}/10`;
+  
+  document.getElementById('queue-3v3-searching').style.display = playerStatus.inQueue3v3 ? 'flex' : 'none';
+  document.getElementById('queue-5v5-searching').style.display = playerStatus.inQueue5v5 ? 'flex' : 'none';
+  
+  // Lista de expostos
+  if (state.exposed && state.exposed.length > 0) {
+    document.getElementById('exposed-section').style.display = 'block';
+    document.getElementById('exposed-list').innerText = state.exposed.map(t => t.nick).join(', ');
+  } else {
+    document.getElementById('exposed-section').style.display = 'none';
+  }
+
+  const rankList = document.getElementById('rank-list');
+  rankList.innerHTML = state.ranking.map(p => `
+    <div class="rank-row">
+      <span>#${p.pos} ${p.nick} ${p.fraud ? '💀' : ''}</span>
+      <span style="color:var(--yellow)">${p.fc}</span>
+    </div>
+  `).join('');
+});
+
+async function loadPlayer() {
+  const r = await fetch(`/api/player/${USER_ID}`);
+  const p = await r.json();
+  document.getElementById('me-nick').innerText = p.nick;
+  document.getElementById('me-fc').innerText = p.fc;
+  document.getElementById('me-fraud').innerText = p.fraud ? '⚠️ VOCÊ ESTÁ EXPOSTO POR FRAUDE (7 DIAS)' : '';
+  playerStatus.inQueue3v3 = p.inQueue3v3;
+  playerStatus.inQueue5v5 = p.inQueue5v5;
+  document.getElementById('prof-nick').innerText = p.nick;
+  document.getElementById('prof-stats').innerHTML = `Vitórias: ${p.wins}<br>Derrotas: ${p.losses}<br>Total: ${p.games}`;
+}
+
+async function joinQueue(mode) {
+  const r = await fetch('/api/queue/join', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ telegramId: USER_ID, mode })
+  });
+  if (r.ok) playerStatus[mode === '3v3' ? 'inQueue3v3' : 'inQueue5v5'] = true;
+}
+
+async function leaveQueue() {
+  await fetch('/api/queue/leave', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ telegramId: USER_ID })
+  });
+  playerStatus.inQueue3v3 = false;
+  playerStatus.inQueue5v5 = false;
+}
+
+loadPlayer();
+tg.expand();
+</script>
+</body>
+</html>
