@@ -1,7 +1,7 @@
 
 const { Telegraf, Markup } = require('telegraf');
-const https = require('https');
-const { pool } = require('./database');
+
+const { pg } = require('../database');
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -15,7 +15,7 @@ function setupHandlers(bot) {
     bot.start(async (ctx) => {
         console.log(`[BOT] /start recebido de ${ctx.from.id}`);
         try {
-            const [rows] = await pool.execute('SELECT * FROM players WHERE telegram_id = ?', [ctx.from.id]);
+            const { rows } = await pg('SELECT * FROM players WHERE telegram_id = ?', [ctx.from.id]);
             if (!rows[0]) {
                 pendingNick.add(ctx.from.id);
                 return ctx.reply('👋 Bem-vindo ao VG Matchmaking BR!\n\nDigite seu nick para começar (3-16 caracteres):');
@@ -41,10 +41,10 @@ function setupHandlers(bot) {
             if (!newNick) return ctx.reply('Uso: /changenick NovoNick');
             if (newNick.length < 3 || newNick.length > 16) return ctx.reply('Nick deve ter entre 3 e 16 caracteres.');
 
-            const [existing] = await pool.execute('SELECT * FROM players WHERE nickname = ?', [newNick]);
-            if (existing.length > 0) return ctx.reply('Este nick já está em uso.');
+            const { rows: [existing] } = await pg('SELECT * FROM players WHERE nickname = ?', [newNick]);
+            if (existing) return ctx.reply('Este nick já está em uso.');
 
-            await pool.execute('UPDATE players SET nickname = ? WHERE telegram_id = ?', [newNick, ctx.from.id]);
+            await pg('UPDATE players SET nickname = ? WHERE telegram_id = ?', [newNick, ctx.from.id]);
             ctx.reply(`✅ Seu nick foi alterado para <b>${newNick}</b>!`, { parse_mode: 'HTML' });
         } catch (err) {
             ctx.reply('❌ Erro ao alterar nick.');
@@ -58,7 +58,7 @@ function setupHandlers(bot) {
             const matchId = ctx.message.text.split(' ')[1];
             if (!matchId) return ctx.reply('Uso: /report ID_DA_PARTIDA');
 
-            await pool.execute(
+            await pg(
                 'INSERT INTO reports (match_id, reporter_id, reason) VALUES (?, ?, ?)',
                 [matchId, ctx.from.id, 'Relatório de análise solicitado pelo jogador.']
             );
@@ -72,14 +72,14 @@ function setupHandlers(bot) {
     bot.command('relatorio', async (ctx) => {
         console.log(`[BOT] /relatorio recebido de ${ctx.from.id}`);
         try {
-            const [adminCheck] = await pool.execute('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
+            const { rows: [adminCheck] } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
             if (!adminCheck[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
 
-            const [reports] = await pool.execute('SELECT * FROM reports WHERE status = "pending" LIMIT 5');
+            const { rows: reports } = await pg('SELECT * FROM reports WHERE status = "pending" LIMIT 5');
             if (reports.length === 0) return ctx.reply('Nenhum relatório pendente.');
 
             for (const report of reports) {
-                const [match] = await pool.execute('SELECT * FROM active_matches WHERE match_id = ?', [report.match_id]);
+                const { rows: [match] } = await pg('SELECT * FROM active_matches WHERE match_id = ?', [report.match_id]);
                 if (!match[0]) continue;
 
                 const teamA = JSON.parse(match[0].team_a_ids);
@@ -107,18 +107,18 @@ function setupHandlers(bot) {
         const reportId = ctx.match[2];
         const fraudUntil = new Date();
         fraudUntil.setDate(fraudUntil.getDate() + 7);
-        await pool.execute(
+        await pg(
             'UPDATE players SET fraud_penalty_until = ?, losses = losses + 2, games = games + 2 WHERE telegram_id = ?',
             [fraudUntil.toISOString().slice(0, 19).replace('T', ' '), targetId]
         );
-        await pool.execute('UPDATE reports SET status = "resolved" WHERE id = ?', [reportId]);
+        await pg('UPDATE reports SET status = "resolved" WHERE id = ?', [reportId]);
         ctx.answerCbQuery('Punição aplicada.');
         ctx.editMessageText('✅ Punição aplicada com sucesso.');
     });
 
     bot.action(/clear_(\d+)_(\d+)/, async (ctx) => {
         const reportId = ctx.match[2];
-        await pool.execute('UPDATE reports SET status = "resolved" WHERE id = ?', [reportId]);
+        await pg('UPDATE reports SET status = "resolved" WHERE id = ?', [reportId]);
         ctx.answerCbQuery('Relatório arquivado.');
         ctx.editMessageText('✅ Relatório arquivado.');
     });
@@ -130,10 +130,10 @@ function setupHandlers(bot) {
         if (nick.startsWith('/')) return next();
         if (nick.length < 3 || nick.length > 16) return ctx.reply('Nick inválido (3-16 caracteres):');
 
-        const [existing] = await pool.execute('SELECT * FROM players WHERE nickname = ?', [nick]);
-        if (existing.length > 0) return ctx.reply('Este nick já está em uso:');
+        const { rows: [existing] } = await pg('SELECT * FROM players WHERE nickname = ?', [nick]);
+        if (existing) return ctx.reply('Este nick já está em uso:');
 
-        await pool.execute('INSERT INTO players (telegram_id, nickname) VALUES (?, ?)', [ctx.from.id, nick]);
+        await pg('INSERT INTO players (telegram_id, nickname) VALUES (?, ?)', [ctx.from.id, nick]);
         pendingNick.delete(ctx.from.id);
         await ctx.reply(`✅ Nick <b>${nick}</b> registrado!`, { parse_mode: 'HTML' });
         await sleep(500);
