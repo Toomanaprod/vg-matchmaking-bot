@@ -158,12 +158,12 @@ async function sendAppPortal(ctx) {
         '2️⃣ <b>Aguarde a Partida</b>\n' +
         '   Quando 6 ou 10 jogadores forem encontrados, você receberá:\n' +
         '   • ID da partida (#XXXXX)\n' +
-        '   • Sniping Code (ex: VG-1_)\n' +
+        '   • Sniping Code (ex: 4530)\n' +
         '   • Nomes dos seus aliados\n\n' +
         '3️⃣ <b>Mude Seu Nick</b>\n' +
         '   Antes de entrar no jogo, mude seu nick para:\n' +
         '   <code>SNIPING_CODE-NUMERO_SeuNick</code>\n' +
-        '   Exemplo: <code>VG-1_Seu_Nick</code>\n\n' +
+        '   Exemplo: <code>4530-1_Seu_Nick</code>\n\n' +
         '4️⃣ <b>Jogue!</b>\n' +
         '   Encontre seus aliados (mesma cor) e vença!\n\n' +
         '💡 <b>DICAS:</b>\n' +
