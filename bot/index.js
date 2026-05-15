@@ -72,8 +72,8 @@ function setupHandlers(bot) {
     bot.command('relatorio', async (ctx) => {
         console.log(`[BOT] /relatorio recebido de ${ctx.from.id}`);
         try {
-            const { rows: [adminCheck] } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
-            if (!adminCheck[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+            const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
+            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
 
             const { rows: reports } = await pg('SELECT * FROM reports WHERE status = "pending" LIMIT 5');
             if (reports.length === 0) return ctx.reply('Nenhum relatório pendente.');
@@ -98,6 +98,57 @@ function setupHandlers(bot) {
             }
         } catch (err) {
             ctx.reply('❌ Erro ao buscar relatórios.');
+        }
+    });
+
+    // /news - Adiciona uma notícia
+    bot.command('news', async (ctx) => {
+        try {
+            const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
+            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+
+            const content = sanitizeInput(ctx.message.text.split(' ').slice(1).join(' '));
+            if (!content) return ctx.reply('Uso: /news Texto da notícia');
+
+            await pg('INSERT INTO news (content) VALUES (?)', [content]);
+            // Manter apenas as últimas 5 notícias
+            await pg('DELETE FROM news WHERE id NOT IN (SELECT id FROM news ORDER BY created_at DESC LIMIT 5)');
+            
+            ctx.reply('✅ Notícia postada com sucesso!');
+        } catch (err) {
+            ctx.reply('❌ Erro ao postar notícia.');
+        }
+    });
+
+    // /evento - Adiciona um evento (sintaxe: /evento 00:00-Texto)
+    bot.command('evento', async (ctx) => {
+        try {
+            const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
+            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+
+            const input = ctx.message.text.split(' ').slice(1).join(' ');
+            const match = input.match(/^(\d{2}:\d{2})-(.+)$/);
+            
+            if (!match) return ctx.reply('Uso: /evento HH:MM-Texto do evento');
+
+            const [_, time, content] = match;
+            
+            // Calcular expiração (1 hora após o horário do evento hoje)
+            const [hours, minutes] = time.split(':').map(Number);
+            const expiresAt = new Date();
+            expiresAt.setHours(hours + 1, minutes, 0, 0);
+            
+            // Se o horário já passou hoje, assume que é para amanhã
+            if (expiresAt < new Date()) {
+                expiresAt.setDate(expiresAt.getDate() + 1);
+            }
+
+            await pg('INSERT INTO events (event_time, content, expires_at) VALUES (?, ?, ?)', 
+                [time, sanitizeInput(content), expiresAt.toISOString()]);
+            
+            ctx.reply(`✅ Evento agendado para as ${time}!`);
+        } catch (err) {
+            ctx.reply('❌ Erro ao agendar evento.');
         }
     });
 
@@ -195,7 +246,9 @@ async function startBot() {
             { command: 'tutorial', description: 'Ver como jogar' },
             { command: 'changenick', description: 'Mudar seu apelido' },
             { command: 'report', description: 'Reportar uma partida (#id)' },
-            { command: 'relatorio', description: 'Ver relatórios (Admin)' }
+            { command: 'relatorio', description: 'Ver relatórios (Admin)' },
+            { command: 'news', description: 'Postar notícia (Admin)' },
+            { command: 'evento', description: 'Criar evento (Admin)' }
         ]);
         console.log('[BOT] ✅ Comandos registrados no Telegram!');
     } catch (err) {
