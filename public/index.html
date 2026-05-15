@@ -255,6 +255,10 @@
     document.getElementById('state-online').classList.toggle('hidden', myStatus !== 'online');
     document.getElementById('state-queue').classList.toggle('hidden', myStatus !== 'in_queue');
     document.getElementById('queues-section').classList.toggle('hidden', myStatus === 'offline' || inMatch);
+
+    // Atualizar visibilidade do "BUSCANDO"
+    document.getElementById('q3-searching').classList.toggle('hidden', !(myStatus === 'in_queue' && inQueueMode === '3v3'));
+    document.getElementById('q5-searching').classList.toggle('hidden', !(myStatus === 'in_queue' && inQueueMode === '5v5'));
   }
   
   function showPage(id, el) {
@@ -265,9 +269,17 @@
   }
   
   async function setStatus(status) { 
-    myStatus = status; 
-    if (status === 'offline') {
+    if (status === 'online') {
+        // Notificar o servidor que estamos online ao clicar no botão
+        await fetch('/api/queue/join', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ telegramId: USER_ID, mode: 'none' }) 
+        });
+        myStatus = 'online';
+    } else if (status === 'offline') {
         await leaveQueue();
+        myStatus = 'offline';
         // Garantir que a UI reseta completamente
         document.getElementById('state-online').classList.add('hidden');
         document.getElementById('state-queue').classList.add('hidden');
@@ -292,6 +304,10 @@
     document.getElementById('ingame-count').innerText = state.inGame || 0;
     document.getElementById('queue-3v3-count').innerText = `${state.queue3v3}/6`;
     document.getElementById('queue-5v5-count').innerText = `${state.queue5v5}/10`;
+
+    // Atualizar visibilidade do "BUSCANDO"
+    document.getElementById('q3-searching').classList.toggle('hidden', !(myStatus === 'in_queue' && inQueueMode === '3v3'));
+    document.getElementById('q5-searching').classList.toggle('hidden', !(myStatus === 'in_queue' && inQueueMode === '5v5'));
     
     // Update News
     const newsList = document.getElementById('news-list');
