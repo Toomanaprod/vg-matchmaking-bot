@@ -22,8 +22,11 @@ function countOnline() {
     const cutoff = Date.now() - 10 * 60 * 1000;
     let count = 0;
     for (const [id, data] of onlineUsers) {
-        if (data.timestamp < cutoff) onlineUsers.delete(id);
-        else if (data.status === 'online') count++;
+        if (data.timestamp < cutoff) {
+            onlineUsers.delete(id);
+        } else {
+            count++;
+        }
     }
     return count;
 }
@@ -118,14 +121,18 @@ app.post('/api/queue/join', async (req, res) => {
         if (!rows[0]) return res.status(404).json({ error: 'not_registered' });
 
         onlineUsers.set(uid, { timestamp: Date.now(), status: 'online' });
-        addToQueue(mode, { id: uid, name: rows[0].nickname }, activeMatches, onlineUsers);
+        if (mode && mode !== 'none') {
+            addToQueue(mode, { id: uid, name: rows[0].nickname }, activeMatches, onlineUsers);
+        }
         await broadcastState();
         res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/queue/leave', async (req, res) => {
-    removeFromQueue(Number(req.body.telegramId));
+    const uid = Number(req.body.telegramId);
+    removeFromQueue(uid);
+    onlineUsers.delete(uid);
     await broadcastState();
     res.json({ ok: true });
 });
