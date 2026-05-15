@@ -49,6 +49,17 @@
     .table { width: 100%; border-collapse: collapse; }
     .table th { text-align: left; border-bottom: 1px solid var(--border-color); color: var(--primary); font-size: 0.65rem; padding: 8px; }
     .table td { padding: 8px; border-bottom: 1px solid rgba(85, 81, 105, 0.2); font-size: 0.75rem; }
+
+    /* PROFILE STYLES */
+    .profile-card { background: rgba(255, 255, 255, 0.03); padding: 15px; border: 1px solid var(--border-color); margin-bottom: 15px; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .stat-item { border: 1px solid var(--border-color); padding: 10px; text-align: center; }
+    .stat-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; display: block; }
+    .stat-val { font-size: 1.1rem; font-weight: bold; color: var(--terminal-fg); }
+    .winrate-container { margin-top: 15px; }
+    .progress-bg { height: 8px; background: var(--terminal-black); border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.5s ease-out; }
+    .stat-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--success); font-weight: bold; }
   </style>
 </head>
 <body>
@@ -66,6 +77,7 @@
     <li onclick="showPage('ranking', this)"><a><i class="fa-solid fa-ranking-star"></i> Ranking</a></li>
   </ul>
   <div class="content">
+    <!-- LOBBY -->
     <div id="lobby" style="display:flex;flex-direction:column;flex:1;">
       <div class="section-box">
         <div class="section-header"><i class="fa-solid fa-circle-info"></i> Jogador</div>
@@ -91,7 +103,49 @@
         <div id="state-queue" class="hidden"><button class="button is-danger is-fullwidth" onclick="leaveQueue()"><i class="fa-solid fa-stop"></i> SAIR DA FILA</button></div>
       </div>
     </div>
-    <div id="profile" class="hidden"><div class="section-box"><div class="section-header">Desempenho</div><div id="prof-stats"></div></div></div>
+
+    <!-- PROFILE -->
+    <div id="profile" class="hidden">
+      <div class="profile-card">
+        <div class="section-header"><i class="fa-solid fa-user-gear"></i> Identidade do Piloto</div>
+        <div id="prof-nick" class="player-nick"><i class="fa-solid fa-user"></i> ...</div>
+        <div id="prof-fc" class="player-fc"><i class="fa-solid fa-id-card"></i> ...</div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-header"><i class="fa-solid fa-chart-line"></i> Estatísticas de Combate</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-trophy"></i> Vitórias</span>
+            <span id="stat-wins" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-skull"></i> Derrotas</span>
+            <span id="stat-losses" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-gamepad"></i> Partidas</span>
+            <span id="stat-total" class="stat-val">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-star"></i> FC (Index)</span>
+            <span id="stat-fc" class="stat-val" style="color:var(--warning)">0</span>
+          </div>
+        </div>
+
+        <div class="winrate-container">
+          <div class="stat-header">
+            <span>TAXA DE VITÓRIA</span>
+            <span id="winrate-pct">0%</span>
+          </div>
+          <div class="progress-bg">
+            <div id="winrate-fill" class="progress-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RANKING -->
     <div id="ranking" class="hidden"><div class="section-box"><table class="table"><thead><tr><th>POS</th><th>NICK</th><th>FC</th><th>STATUS</th></tr></thead><tbody id="rank-list"></tbody></table></div></div>
   </div>
 </div>
@@ -130,11 +184,25 @@
   });
   async function loadPlayer() {
     const r = await fetch(`/api/player/${USER_ID}`); const p = await r.json();
-    document.getElementById('me-nick').innerHTML = `<i class="fa-solid fa-user"></i> ${p.nick}`;
-    document.getElementById('me-fc').innerHTML = `<i class="fa-solid fa-id-card"></i> ${p.fc}`;
+    const nickHTML = `<i class="fa-solid fa-user"></i> ${p.nick}`;
+    const fcHTML = `<i class="fa-solid fa-id-card"></i> ${p.fc}`;
+    
+    document.getElementById('me-nick').innerHTML = nickHTML;
+    document.getElementById('me-fc').innerHTML = fcHTML;
+    document.getElementById('prof-nick').innerHTML = nickHTML;
+    document.getElementById('prof-fc').innerHTML = fcHTML;
+    
+    document.getElementById('stat-wins').innerText = p.wins;
+    document.getElementById('stat-losses').innerText = p.losses;
+    document.getElementById('stat-total').innerText = p.games;
+    document.getElementById('stat-fc').innerText = p.fc;
+    
+    const winrate = p.games > 0 ? Math.round((p.wins / p.games) * 100) : 0;
+    document.getElementById('winrate-pct').innerText = `${winrate}%`;
+    document.getElementById('winrate-fill').style.width = `${winrate}%`;
+
     if (p.inQueue3v3 || p.inQueue5v5) { myStatus = 'in_queue'; inQueueMode = p.inQueue3v3 ? '3v3' : '5v5'; } else { myStatus = 'offline'; }
     updateUI();
-    document.getElementById('prof-stats').innerHTML = `Vitórias: <b>${p.wins}</b> | Derrotas: <b>${p.losses}</b><br>Total: <b>${p.games} partidas</b>`;
   }
   loadPlayer(); tg.expand();
 </script>
