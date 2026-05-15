@@ -39,29 +39,29 @@ async function getGlobalState() {
         'SELECT nickname, wins, losses, games, vg_index, penalty_until, fraud_penalty_until FROM players WHERE games >= 10 ORDER BY vg_index DESC, games DESC LIMIT 10'
     );
     
-    // Jogadores expostos por fraude (trolls)
-    const { rows: exposedTrolls } = await pg(
-        'SELECT nickname, fraud_penalty_until FROM players WHERE fraud_penalty_until > NOW() LIMIT 20'
-    );
+    const { rows: news } = await pg('SELECT content FROM news ORDER BY created_at DESC LIMIT 5');
+    const { rows: events } = await pg('SELECT event_time, content FROM events WHERE expires_at > NOW() ORDER BY expires_at ASC');
     
+    // Contagem real de jogadores em partida
+    let playersInGame = 0;
+    activeMatches.forEach(m => {
+        playersInGame += (m.teamA.length + m.teamB.length);
+    });
+
     return {
         online:    countOnline(),
         searching: new Set([...queue3v3.map(p => p.id), ...queue5v5.map(p => p.id)]).size,
-        inGame:    activeMatches.length,
+        inGame:    playersInGame,
         queue3v3:  queue3v3.length,
         queue5v5:  queue5v5.length,
-        matches:   activeMatches.map(m => ({
-            id: m.match_id, mode: m.mode,
-            confirmed: m.confirmations.length,
-            total:     m.teamA.length + m.teamB.length,
-        })),
+        news:      news.map(n => n.content),
+        events:    events.map(e => ({ time: e.event_time, text: e.content })),
         ranking: topPlayers.map((p, i) => ({
             pos: i + 1, nick: p.nickname,
             fc: formatFC(p.games, p.vg_index, p.fraud_penalty_until),
             games: p.games, wins: p.wins, losses: p.losses,
             fraud: !!(p.fraud_penalty_until && new Date(p.fraud_penalty_until) > new Date())
-        })),
-        exposed: exposedTrolls.map(t => ({ nick: t.nick, until: t.fraud_penalty_until }))
+        }))
     };
 }
 
@@ -79,6 +79,24 @@ app.get('/api/player/:telegramId', async (req, res) => {
         const p = rows[0];
         const isFraud = p.fraud_penalty_until && new Date(p.fraud_penalty_until) > new Date();
         
+        const currentMatch = activeMatches.find(m => m.teamA.some(pl => pl.id === uid) || m.teamB.some(pl => pl.id === uid));
+        let matchData = null;
+        
+        if (currentMatch) {
+            const isTeamA = currentMatch.teamA.some(pl => pl.id === uid);
+            const myTeam = isTeamA ? currentMatch.teamA : currentMatch.teamB;
+            const enemyTeam = isTeamA ? currentMatch.teamB : currentMatch.teamA;
+            
+            matchData = {
+                id: currentMatch.match_id,
+                snipingCode: currentMatch.sniping_code,
+                mode: currentMatch.mode,
+                myTeamNumber: isTeamA ? currentMatch.teamA[0].teamNumber : currentMatch.teamB[0].teamNumber,
+                allies: myTeam.map(p => ({ name: p.name, fc: p.fc })),
+                enemies: enemyTeam.map((p, i) => ({ name: `Player ${i+1}`, fc: p.fc }))
+            };
+        }
+
         res.json({
             nick: p.nickname, id: p.telegram_id,
             fc: formatFC(p.games, p.vg_index, p.fraud_penalty_until),
@@ -86,7 +104,8 @@ app.get('/api/player/:telegramId', async (req, res) => {
             fraud: isFraud, isAdmin: !!p.is_admin,
             inQueue3v3: queue3v3.some(q => q.id === uid),
             inQueue5v5: queue5v5.some(q => q.id === uid),
-            inMatch: activeMatches.some(m => m.teamA.some(pl => pl.id === uid) || m.teamB.some(pl => pl.id === uid))
+            inMatch: !!currentMatch,
+            match: matchData
         });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -114,6 +133,8 @@ app.post('/api/queue/leave', async (req, res) => {
 // Loop de verificação
 setInterval(async () => {
     await checkExpiringMatches();
+    // Limpar eventos expirados
+    await pg('DELETE FROM events WHERE expires_at <= NOW()');
     await broadcastState();
 }, 30000);
 

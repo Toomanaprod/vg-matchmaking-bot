@@ -33,6 +33,11 @@ function isPlayerInMatch(id, activeMatches) {
     );
 }
 
+async function getPlayerFC(id) {
+    const { rows } = await pg('SELECT vg_index FROM players WHERE telegram_id = ?', [id]);
+    return rows[0] ? Number(rows[0].vg_index) : 50;
+}
+
 function addToQueue(mode, player, activeMatches, onlineUsers) {
     const user = onlineUsers.get(player.id);
     if (!user || user.status !== 'online') return false;
@@ -75,28 +80,54 @@ async function createMatch(mode) {
 
     if (queue.length < size) return null;
 
+    // Pegar os jogadores por ordem de chegada
     const players = queue.splice(0, size);
     for (const p of players) removeFromQueue(p.id);
 
-    const shuffled = [...players].sort(() => Math.random() - 0.5);
-    const half = size / 2;
-    const teamNumber = Math.random() < 0.5 ? 1 : 2;
-    const teamA = shuffled.slice(0, half).map(p => ({ ...p, teamNumber }));
-    const teamB = shuffled.slice(half).map(p => ({ ...p, teamNumber: teamNumber === 1 ? 2 : 1 }));
+    // Buscar FC de todos os jogadores para balanceamento
+    const playersWithFC = await Promise.all(players.map(async p => ({
+        ...p,
+        fc: await getPlayerFC(p.id)
+    })));
+
+    // Ordenar por FC para balancear (Snake Draft)
+    playersWithFC.sort((a, b) => b.fc - a.fc);
+
+    const teamA = [];
+    const teamB = [];
+    
+    // Distribuição balanceada (1-2-2-1 para 3v3, 1-2-2-2-2-1 para 5v5)
+    playersWithFC.forEach((p, i) => {
+        if (size === 6) {
+            // 3v3: A, B, B, A, A, B
+            if ([0, 3, 4].includes(i)) teamA.push(p);
+            else teamB.push(p);
+        } else {
+            // 5v5: A, B, B, A, A, B, B, A, A, B
+            if ([0, 3, 4, 7, 8].includes(i)) teamA.push(p);
+            else teamB.push(p);
+        }
+    });
+
+    const teamNumberA = Math.random() < 0.5 ? 1 : 2;
+    const teamNumberB = teamNumberA === 1 ? 2 : 1;
+
+    const finalTeamA = teamA.map(p => ({ ...p, teamNumber: teamNumberA }));
+    const finalTeamB = teamB.map(p => ({ ...p, teamNumber: teamNumberB }));
 
     const snipingCode = generateSnipingCode();
     const { rows } = await pg(
         `INSERT INTO active_matches (sniping_code, mode, team_a_ids, team_b_ids, confirmations, results, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING match_id`,
-        [snipingCode, mode, JSON.stringify(teamA), JSON.stringify(teamB), JSON.stringify([]), JSON.stringify({}), new Date().toISOString()]
+        [snipingCode, mode, JSON.stringify(finalTeamA), JSON.stringify(finalTeamB), JSON.stringify([]), JSON.stringify({}), new Date().toISOString()]
     );
 
     const match = {
         match_id: rows[0].match_id,
         sniping_code: snipingCode,
         mode,
-        teamA,
-        teamB,
+        teamA: finalTeamA,
+        teamB: finalTeamB,
         confirmations: [],
         results: {},
         created_at: new Date().toISOString()
@@ -117,6 +148,7 @@ async function checkExpiringMatches() {
     const expiredMatches = activeMatches.filter(m => {
         const createdAt = new Date(m.created_at);
         const diffMinutes = (now - createdAt) / (1000 * 60);
+        // Partida expira se não for confirmada em 2 minutos
         return diffMinutes > 2 && m.confirmations.length < (m.teamA.length + m.teamB.length);
     });
 
@@ -125,8 +157,17 @@ async function checkExpiringMatches() {
         const nonConfirmers = totalPlayers.filter(p => !match.confirmations.includes(p.id));
         const confirmers = totalPlayers.filter(p => match.confirmations.includes(p.id));
 
-        for (const player of nonConfirmers) returnToQueue(match.mode, player, false);
-        for (const player of confirmers) returnToQueue(match.mode, player, true);
+        // Jogadores que confirmaram voltam para o INÍCIO da fila (prioridade)
+        for (const player of confirmers) {
+            const pData = { id: player.id, name: player.name };
+            returnToQueue(match.mode, pData, true);
+        }
+        
+        // Jogadores que NÃO confirmaram voltam para o FINAL da fila
+        for (const player of nonConfirmers) {
+            const pData = { id: player.id, name: player.name };
+            returnToQueue(match.mode, pData, false);
+        }
 
         await removeActiveMatch(match.match_id);
     }
@@ -142,10 +183,36 @@ module.exports = {
 const { calculateVGIndex } = require('./ranking');
 
 async function finalizeMatch(match, winnerTeam) {
-    const allPlayers = [...match.teamA, ...match.teamB];
+    const teamA = match.teamA;
+    const teamB = match.teamB;
+    
+    const avgFCA = teamA.reduce((acc, p) => acc + (p.fc || 50), 0) / teamA.length;
+    const avgFCB = teamB.reduce((acc, p) => acc + (p.fc || 50), 0) / teamB.length;
+
+    const allPlayers = [...teamA, ...teamB];
 
     for (const player of allPlayers) {
         const isWinner = player.teamNumber === winnerTeam;
+        const isTeamA = teamA.some(p => p.id === player.id);
+        
+        // Cálculo de bônus/penalidade baseado na discrepância de FC
+        // Se ganhei de um time mais forte, ganho mais. Se perdi para um mais forte, perco menos.
+        const myTeamAvg = isTeamA ? avgFCA : avgFCB;
+        const enemyTeamAvg = isTeamA ? avgFCB : avgFCA;
+        const diff = enemyTeamAvg - myTeamAvg;
+        
+        // Fator de ajuste: cada 10 pontos de diferença alteram o peso da vitória/derrota
+        // K padrão é 20 no ranking.js. Vamos ajustar o peso virtual da vitória.
+        let weight = 0.5; // Padrão (empate técnico)
+        if (isWinner) {
+            // Se ganhei de alguém mais forte (diff > 0), meu "peso de vitória" aumenta
+            weight = 0.5 + (diff / 100); 
+        } else {
+            // Se perdi para alguém mais forte (diff > 0), meu "peso de derrota" diminui (perco menos)
+            weight = 0.5 + (diff / 100);
+        }
+        // Limitar weight entre 0.1 e 0.9 para não quebrar a fórmula
+        weight = Math.max(0.1, Math.min(0.9, weight));
 
         // Atualiza wins/losses/games
         await pg(
@@ -157,13 +224,13 @@ async function finalizeMatch(match, winnerTeam) {
             [isWinner ? 1 : 0, isWinner ? 0 : 1, player.id]
         );
 
-        // Recalcula vg_index com base nos novos totais
+        // Recalcula vg_index com base nos novos totais e no peso dinâmico
         const { rows } = await pg(
             'SELECT wins, games FROM players WHERE telegram_id = ?',
             [player.id]
         );
         if (rows[0]) {
-            const newIndex = calculateVGIndex(rows[0].wins, rows[0].games);
+            const newIndex = calculateVGIndex(rows[0].wins, rows[0].games, 20, weight);
             await pg(
                 'UPDATE players SET vg_index = ? WHERE telegram_id = ?',
                 [newIndex, player.id]
