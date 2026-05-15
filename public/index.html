@@ -15,29 +15,35 @@
       --terminal-cyan: #ebbcba; --primary: var(--terminal-cyan); --danger: var(--terminal-red);
       --success: var(--terminal-green); --warning: var(--terminal-yellow); --info: var(--terminal-blue);
       --border-color: #555169; --muted: #6e6a86;
+      --title-color: #9ccfd8; /* Cor harmônica para títulos */
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: var(--terminal-bg); color: var(--terminal-fg); font-family: 'JetBrains Mono', monospace; font-size: 14px; min-height: 100vh; }
     .screen { max-width: 640px; margin: 0 auto; border: 1px solid var(--border-color); background: var(--terminal-bg); min-height: 100vh; display: flex; flex-direction: column; }
+    
     .navbar { padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); }
     .navbar-brand { font-weight: bold; color: var(--primary); text-transform: uppercase; font-size: 0.85rem; }
-    .server-status { display: flex; gap: 12px; font-size: 0.65rem; text-transform: uppercase; }
-    .status-online { color: var(--muted); }
-    .status-searching { color: var(--warning); }
+    .server-status { display: flex; gap: 8px; font-size: 0.55rem; text-transform: uppercase; }
+    .status-item { color: var(--muted); display: flex; align-items: center; gap: 4px; }
+    .status-item i { font-size: 0.5rem; }
+
     .tabs { display: flex; border-bottom: 1px solid var(--border-color); list-style: none; }
     .tabs li { flex: 1; }
     .tabs a { display: block; color: var(--muted); padding: 10px 14px; cursor: pointer; text-transform: uppercase; font-size: 0.7rem; text-align: center; text-decoration: none; }
     .tabs li.is-active a { color: var(--primary); border-bottom: 2px solid var(--primary); font-weight: bold; }
+    
     .content { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; }
-    .section-box { border: 1px solid var(--border-color); padding: 10px 12px; margin-bottom: 10px; }
+    .section-box { border: 1px solid var(--border-color); padding: 10px 12px; margin-bottom: 10px; background: rgba(255,255,255,0.02); }
     .section-header { color: var(--terminal-magenta); font-size: 0.65rem; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border-color); }
-    .player-nick { font-size: 1.3rem; font-weight: bold; color: var(--terminal-fg); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-    .player-fc { color: var(--warning); font-size: 0.85rem; display: flex; align-items: center; gap: 6px; }
-    .spacer { flex: 1; }
+    
+    .title-text { color: var(--title-color); font-weight: bold; }
+    .player-nick { font-size: 1.1rem; font-weight: bold; color: var(--terminal-fg); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    
     .queue-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
-    .queue-label { font-size: 1.5rem; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+    .queue-label { font-size: 1.2rem; font-weight: 500; display: flex; align-items: center; gap: 10px; color: var(--title-color); }
     .queue-searching-text { font-size: 0.75rem; color: var(--success); animation: blink 1s infinite; margin-right: 10px; }
     @keyframes blink { 50% { opacity: 0; } }
+    
     .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .button { flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--muted); cursor: pointer; padding: 12px 8px; text-transform: uppercase; font-size: 0.75rem; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit; transition: all 0.2s; }
     .button:hover { border-color: var(--terminal-fg); color: var(--terminal-fg); }
@@ -45,7 +51,16 @@
     .button.is-info { border-color: var(--info); color: var(--info); }
     .button.is-danger { border-color: var(--danger); color: var(--danger); }
     .button.is-fullwidth { flex: none; width: 100%; }
+    
     .hidden { display: none !important; }
+    
+    /* NEWS & EVENTS */
+    .news-item { font-size: 0.8rem; padding: 6px 0; border-bottom: 1px dashed rgba(85, 81, 105, 0.3); }
+    .news-item:last-child { border-bottom: none; }
+    .event-item { font-size: 0.8rem; padding: 6px 0; display: flex; gap: 8px; }
+    .event-time { color: var(--terminal-yellow); font-weight: bold; min-width: 45px; }
+    .event-text { color: var(--terminal-fg); }
+
     .table { width: 100%; border-collapse: collapse; }
     .table th { text-align: left; border-bottom: 1px solid var(--border-color); color: var(--primary); font-size: 0.65rem; padding: 8px; }
     .table td { padding: 8px; border-bottom: 1px solid rgba(85, 81, 105, 0.2); font-size: 0.75rem; }
@@ -67,8 +82,9 @@
   <nav class="navbar">
     <div class="navbar-brand"><i class="fa-solid fa-gamepad"></i> VG-MATCH</div>
     <div class="server-status">
-      <span class="status-online"><i class="fa-solid fa-circle"></i> <span id="online-count">0</span> online</span>
-      <span class="status-searching"><i class="fa-solid fa-magnifying-glass"></i> <span id="searching-count">0</span> buscando</span>
+      <span class="status-item"><i class="fa-solid fa-circle"></i> <span id="online-count">0</span> ON</span>
+      <span class="status-item"><i class="fa-solid fa-magnifying-glass"></i> <span id="searching-count">0</span> BUSC</span>
+      <span class="status-item"><i class="fa-solid fa-play"></i> <span id="ingame-count">0</span> JOGO</span>
     </div>
   </nav>
   <ul class="tabs">
@@ -79,20 +95,44 @@
   <div class="content">
     <!-- LOBBY -->
     <div id="lobby" style="display:flex;flex-direction:column;flex:1;">
+      <!-- NEWS HUB -->
       <div class="section-box">
-        <div class="section-header"><i class="fa-solid fa-circle-info"></i> Jogador</div>
-        <div id="me-nick" class="player-nick"><i class="fa-solid fa-user"></i> ...</div>
-        <div id="me-fc" class="player-fc"><i class="fa-solid fa-id-card"></i> ...</div>
+        <div class="section-header"><i class="fa-solid fa-newspaper"></i> Hub de Notícias</div>
+        <div id="news-list">
+          <div class="news-item">Nenhuma notícia no momento.</div>
+        </div>
       </div>
-      <div class="spacer"></div>
+
+      <!-- EVENTS AGENDA -->
+      <div class="section-box">
+        <div class="section-header"><i class="fa-solid fa-calendar-days"></i> Agenda de Eventos</div>
+        <div id="events-list">
+          <div class="news-item">Nenhum evento agendado.</div>
+        </div>
+      </div>
+
+      <div class="spacer" style="flex:1"></div>
+
+      <!-- QUEUES (Only visible when online) -->
       <div id="queues-section" class="section-box hidden">
         <div class="section-header"><i class="fa-solid fa-magnifying-glass"></i> Filas Disponíveis</div>
-        <div class="queue-row"><span class="queue-label"><i class="fa-solid fa-bullseye" style="color:var(--terminal-red)"></i> 3v3</span><div><span id="q3-searching" class="queue-searching-text hidden">BUSCANDO</span><span class="queue-count" id="queue-3v3-count">0/6</span></div></div>
-        <div class="queue-row"><span class="queue-label"><i class="fa-solid fa-fire" style="color:var(--terminal-yellow)"></i> 5v5</span><div><span id="q5-searching" class="queue-searching-text hidden">BUSCANDO</span><span class="queue-count" id="queue-5v5-count">0/10</span></div></div>
+        <div class="queue-row">
+          <span class="queue-label"><i class="fa-solid fa-bullseye" style="color:var(--terminal-red)"></i> 3v3</span>
+          <div><span id="q3-searching" class="queue-searching-text hidden">BUSCANDO</span><span class="queue-count" id="queue-3v3-count">0/6</span></div>
+        </div>
+        <div class="queue-row">
+          <span class="queue-label"><i class="fa-solid fa-fire" style="color:var(--terminal-yellow)"></i> 5v5</span>
+          <div><span id="q5-searching" class="queue-searching-text hidden">BUSCANDO</span><span class="queue-count" id="queue-5v5-count">0/10</span></div>
+        </div>
       </div>
+
+      <!-- ACTIONS -->
       <div class="section-box">
-        <div class="section-header"><i class="fa-solid fa-bolt"></i> Ações</div>
-        <div id="state-offline"><button class="button is-success is-fullwidth" onclick="setStatus('online')"><i class="fa-solid fa-plug"></i> FICAR ONLINE</button></div>
+        <div class="section-header"><i class="fa-solid fa-bolt"></i> Terminal de Acesso</div>
+        <div id="state-offline">
+          <div style="text-align:center; margin-bottom:10px; font-size:0.7rem; color:var(--muted);">STATUS: <span style="color:var(--danger)">OFFLINE</span></div>
+          <button class="button is-success is-fullwidth" onclick="setStatus('online')"><i class="fa-solid fa-plug"></i> FICAR ONLINE</button>
+        </div>
         <div id="state-online" class="hidden">
           <div class="btn-row">
             <button class="button is-success" onclick="joinQueue('3v3')"><i class="fa-solid fa-play"></i> JOGAR 3v3</button>
@@ -100,7 +140,9 @@
           </div>
           <button class="button is-fullwidth" onclick="setStatus('offline')"><i class="fa-solid fa-power-off"></i> FICAR OFFLINE</button>
         </div>
-        <div id="state-queue" class="hidden"><button class="button is-danger is-fullwidth" onclick="leaveQueue()"><i class="fa-solid fa-stop"></i> SAIR DA FILA</button></div>
+        <div id="state-queue" class="hidden">
+          <button class="button is-danger is-fullwidth" onclick="leaveQueue()"><i class="fa-solid fa-stop"></i> SAIR DA FILA</button>
+        </div>
       </div>
     </div>
 
@@ -109,7 +151,7 @@
       <div class="profile-card">
         <div class="section-header"><i class="fa-solid fa-user-gear"></i> Identidade do Piloto</div>
         <div id="prof-nick" class="player-nick"><i class="fa-solid fa-user"></i> ...</div>
-        <div id="prof-fc" class="player-fc"><i class="fa-solid fa-id-card"></i> ...</div>
+        <div id="prof-fc" class="player-fc" style="color:var(--warning); font-size:0.85rem;"><i class="fa-solid fa-id-card"></i> ...</div>
       </div>
 
       <div class="section-box">
@@ -146,12 +188,22 @@
     </div>
 
     <!-- RANKING -->
-    <div id="ranking" class="hidden"><div class="section-box"><table class="table"><thead><tr><th>POS</th><th>NICK</th><th>FC</th><th>STATUS</th></tr></thead><tbody id="rank-list"></tbody></table></div></div>
+    <div id="ranking" class="hidden">
+      <div class="section-box">
+        <table class="table">
+          <thead>
+            <tr><th>POS</th><th>NICK</th><th>FC</th><th>STATUS</th></tr>
+          </thead>
+          <tbody id="rank-list"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 <script>
   const tg = window.Telegram.WebApp; const socket = io(); const USER_ID = tg.initDataUnsafe.user?.id || 123;
   let myStatus = 'offline'; let inQueueMode = null;
+  
   function updateUI() {
     document.getElementById('state-offline').classList.toggle('hidden', myStatus !== 'offline');
     document.getElementById('state-online').classList.toggle('hidden', myStatus !== 'online');
@@ -160,35 +212,73 @@
     document.getElementById('q3-searching').classList.toggle('hidden', inQueueMode !== '3v3');
     document.getElementById('q5-searching').classList.toggle('hidden', inQueueMode !== '5v5');
   }
+  
   function showPage(id, el) {
     ['lobby', 'profile', 'ranking'].forEach(p => document.getElementById(p).classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.tabs li').forEach(t => t.classList.remove('is-active'));
     el.classList.add('is-active');
   }
-  async function setStatus(status) { myStatus = status; if (status === 'offline') await leaveQueue(); updateUI(); }
+  
+  async function setStatus(status) { 
+    myStatus = status; 
+    if (status === 'offline') await leaveQueue(); 
+    updateUI(); 
+  }
+  
   async function joinQueue(mode) {
     const r = await fetch('/api/queue/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ telegramId: USER_ID, mode }) });
     if (r.ok) { myStatus = 'in_queue'; inQueueMode = mode; updateUI(); }
   }
+  
   async function leaveQueue() {
     await fetch('/api/queue/leave', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ telegramId: USER_ID }) });
     myStatus = 'online'; inQueueMode = null; updateUI();
   }
+  
   socket.on('state_update', (state) => {
     document.getElementById('online-count').innerText = state.online || 0;
     document.getElementById('searching-count').innerText = state.searching || 0;
+    document.getElementById('ingame-count').innerText = state.inGame || 0;
     document.getElementById('queue-3v3-count').innerText = `${state.queue3v3}/6`;
     document.getElementById('queue-5v5-count').innerText = `${state.queue5v5}/10`;
-    document.getElementById('rank-list').innerHTML = (state.ranking || []).map(p => `<tr><td>#${p.pos}</td><td>${p.nick}</td><td style="color:var(--warning);">${p.fc}</td><td class="${p.fraud ? 'text-fraud' : 'text-clean'}">${p.fraud ? 'PUNIDO' : 'LIMPO'}</td></tr>`).join('');
+    
+    // Update News
+    const newsList = document.getElementById('news-list');
+    if (state.news && state.news.length > 0) {
+      newsList.innerHTML = state.news.map(n => `<div class="news-item">${n}</div>`).join('');
+    } else {
+      newsList.innerHTML = '<div class="news-item">Nenhuma notícia no momento.</div>';
+    }
+
+    // Update Events
+    const eventsList = document.getElementById('events-list');
+    if (state.events && state.events.length > 0) {
+      eventsList.innerHTML = state.events.map(e => `
+        <div class="event-item">
+          <span class="event-time">${e.time}</span>
+          <span class="event-text">${e.text}</span>
+        </div>
+      `).join('');
+    } else {
+      eventsList.innerHTML = '<div class="news-item">Nenhum evento agendado.</div>';
+    }
+
+    document.getElementById('rank-list').innerHTML = (state.ranking || []).map(p => `
+      <tr>
+        <td>#${p.pos}</td>
+        <td class="title-text">${p.nick}</td>
+        <td style="color:var(--warning);">${p.fc}</td>
+        <td class="${p.fraud ? 'text-fraud' : 'text-clean'}">${p.fraud ? 'PUNIDO' : 'LIMPO'}</td>
+      </tr>
+    `).join('');
   });
+  
   async function loadPlayer() {
     const r = await fetch(`/api/player/${USER_ID}`); const p = await r.json();
-    const nickHTML = `<i class="fa-solid fa-user"></i> ${p.nick}`;
+    const nickHTML = `<i class="fa-solid fa-user"></i> <span class="title-text">${p.nick}</span>`;
     const fcHTML = `<i class="fa-solid fa-id-card"></i> ${p.fc}`;
     
-    document.getElementById('me-nick').innerHTML = nickHTML;
-    document.getElementById('me-fc').innerHTML = fcHTML;
     document.getElementById('prof-nick').innerHTML = nickHTML;
     document.getElementById('prof-fc').innerHTML = fcHTML;
     
@@ -201,9 +291,11 @@
     document.getElementById('winrate-pct').innerText = `${winrate}%`;
     document.getElementById('winrate-fill').style.width = `${winrate}%`;
 
-    if (p.inQueue3v3 || p.inQueue5v5) { myStatus = 'in_queue'; inQueueMode = p.inQueue3v3 ? '3v3' : '5v5'; } else { myStatus = 'offline'; }
+    // Always start offline as requested
+    myStatus = 'offline';
     updateUI();
   }
+  
   loadPlayer(); tg.expand();
 </script>
 </body>
