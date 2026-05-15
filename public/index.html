@@ -1,177 +1,866 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>VG Matchmaking BR</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="/socket.io/socket.io.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0a0a18; --surface: #111120; --border: #1e1e3a; --text: #7070a0; --white: #f0f0ff; --yellow: #ffe04b; --green: #39ff7e; --red: #ff5555; --blue: #3bbfff;
-  }
-  body { background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; margin: 0; padding: 0; }
-  .header { border-bottom: 1px solid var(--border); padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-  .tabs { display: flex; border-bottom: 1px solid var(--border); }
-  .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; color: var(--text); }
-  .tab.active { color: var(--yellow); border-bottom: 2px solid var(--yellow); }
-  .page { display: none; padding: 20px; }
-  .page.active { display: block; }
-  .btn { width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-  .btn-green { background: #1a3325; color: var(--green); border: 1px solid var(--green); }
-  .btn-blue { background: #0d2233; color: var(--blue); border: 1px solid var(--blue); }
-  .btn-red { background: #2d1010; color: var(--red); border: 1px solid var(--red); }
-  .player-info { margin-bottom: 30px; }
-  .player-nick { font-size: 28px; color: var(--white); }
-  .player-fc { font-size: 18px; color: var(--yellow); }
-  .fraud-alert { color: var(--red); font-size: 12px; margin-top: 5px; }
-  .queue-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; font-size: 14px; }
-  .queue-label { color: var(--text); }
-  .queue-count { color: var(--yellow); font-weight: bold; }
-  .queue-searching { display: flex; align-items: center; gap: 8px; color: var(--green); font-size: 12px; }
-  .searching-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-  .exposed-box { background: rgba(255, 85, 85, 0.1); border: 1px solid var(--red); padding: 10px; border-radius: 8px; margin-top: 20px; }
-  .exposed-title { color: var(--red); font-size: 10px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
-  .exposed-list { font-size: 12px; color: var(--white); }
-  .rank-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VG-MATCH // TERMINAL</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --terminal-bg: #191724;
+      --terminal-fg: #e0def4;
+      --terminal-black: #26233a;
+      --terminal-red: #eb6f92;
+      --terminal-green: #31748f;
+      --terminal-yellow: #f6c177;
+      --terminal-blue: #9ccfd8;
+      --terminal-magenta: #c4a7e7;
+      --terminal-cyan: #ebbcba;
+      --terminal-white: #e0def4;
+      --terminal-purple: #c4a7e7;
+      --primary: var(--terminal-cyan);
+      --danger: var(--terminal-red);
+      --success: var(--terminal-green);
+      --warning: var(--terminal-yellow);
+      --info: var(--terminal-blue);
+      --border-color: #555169;
+      --muted: #6e6a86;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--terminal-bg);
+      color: var(--terminal-fg);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      line-height: 1.4;
+      -webkit-font-smoothing: none;
+      min-height: 100vh;
+    }
+
+    ::selection {
+      background: var(--primary);
+      color: var(--terminal-bg);
+    }
+
+    .screen {
+      max-width: 640px;
+      margin: 0 auto;
+      border: 1px solid var(--border-color);
+      background: var(--terminal-bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* NAVBAR */
+    .navbar {
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .navbar-brand {
+      font-weight: bold;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 0.85rem;
+    }
+
+    .navbar-brand i {
+      color: var(--primary);
+      margin-right: 6px;
+    }
+
+    .server-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .server-status span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-online i { color: var(--muted); font-size: 0.5rem; }
+    .status-online { color: var(--muted); }
+    .status-searching i { color: var(--warning); font-size: 0.5rem; }
+    .status-searching { color: var(--warning); }
+    .status-playing i { color: var(--success); font-size: 0.5rem; }
+    .status-playing { color: var(--success); }
+
+    /* TABS */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      list-style: none;
+      overflow-x: auto;
+    }
+
+    .tabs li {
+      flex: 1;
+    }
+
+    .tabs a {
+      display: block;
+      background: transparent;
+      border: 1px solid transparent;
+      border-bottom: none;
+      color: var(--muted);
+      padding: 10px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      text-align: center;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .tabs a:hover {
+      color: var(--terminal-fg);
+    }
+
+    .tabs li.is-active a {
+      color: var(--primary);
+      border-color: var(--border-color);
+      border-bottom-color: var(--terminal-bg);
+      font-weight: bold;
+    }
+
+    .tabs a i {
+      color: var(--muted);
+      margin-right: 5px;
+    }
+
+    .tabs li.is-active a i {
+      color: var(--primary);
+    }
+
+    .tabs a:hover i {
+      color: var(--terminal-fg);
+    }
+
+    /* MAIN CONTENT */
+    .content {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* SEÇÕES ESTREITAS COM BORDA */
+    .section-box {
+      border: 1px solid var(--border-color);
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+
+    .section-header {
+      color: var(--terminal-magenta);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-header i {
+      color: var(--terminal-magenta);
+      font-size: 0.7rem;
+    }
+
+    /* PLAYER INFO */
+    .player-nick {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: var(--terminal-fg);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-nick i {
+      color: var(--info);
+      font-size: 1.1rem;
+    }
+
+    .player-fc {
+      color: var(--warning);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .player-fc i {
+      color: var(--warning);
+      font-size: 0.8rem;
+    }
+
+    .fraud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--danger);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .fraud-badge i {
+      color: var(--danger);
+      font-size: 0.7rem;
+    }
+
+    /* ESPAÇO VAGO */
+    .spacer {
+      flex: 1;
+    }
+
+    /* FILAS */
+    .queue-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .queue-row:first-child {
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(85, 81, 105, 0.2);
+    }
+
+    .queue-row:last-child {
+      padding-top: 4px;
+    }
+
+    .queue-label {
+      font-size: 1.8rem;
+      font-weight: 500;
+      color: var(--terminal-fg);
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .queue-label i {
+      font-size: 1.4rem;
+    }
+
+    .queue-label .fa-bullseye { color: var(--danger); }
+    .queue-label .fa-fire { color: var(--warning); }
+
+    .queue-count {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .queue-searching {
+      font-size: 0.75rem;
+      color: var(--success);
+      animation: blink 1s infinite;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .queue-searching i {
+      color: var(--success);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* BOTÕES */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .button {
+      flex: 1;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 10px 8px;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      font-weight: bold;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+      text-decoration: none;
+      line-height: 1.2;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .button i {
+      color: var(--muted);
+      transition: color 0.15s;
+      font-size: 0.7rem;
+    }
+
+    .button:hover {
+      border-color: var(--terminal-fg);
+      color: var(--terminal-fg);
+    }
+
+    .button:hover i {
+      color: var(--terminal-fg);
+    }
+
+    .button.is-success {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .button.is-success i {
+      color: var(--success);
+    }
+
+    .button.is-success:hover {
+      background: rgba(49, 116, 143, 0.2);
+    }
+
+    .button.is-success:active {
+      background: var(--success);
+      color: var(--terminal-bg);
+    }
+
+    .button.is-success:active i {
+      color: var(--terminal-bg);
+    }
+
+    .button.is-info {
+      border-color: var(--info);
+      color: var(--info);
+    }
+
+    .button.is-info i {
+      color: var(--info);
+    }
+
+    .button.is-info:hover {
+      background: rgba(156, 207, 216, 0.2);
+    }
+
+    .button.is-info:active {
+      background: var(--info);
+      color: var(--terminal-bg);
+    }
+
+    .button.is-info:active i {
+      color: var(--terminal-bg);
+    }
+
+    .button.is-danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .button.is-danger i {
+      color: var(--danger);
+    }
+
+    .button.is-danger:hover {
+      background: rgba(235, 111, 146, 0.2);
+    }
+
+    .button.is-danger:active {
+      background: var(--danger);
+      color: var(--terminal-bg);
+    }
+
+    .button.is-danger:active i {
+      color: var(--terminal-bg);
+    }
+
+    .button.is-fullwidth {
+      flex: none;
+      width: 100%;
+    }
+
+    /* LOG DE FRAUDE */
+    .fraud-log {
+      border: 1px solid var(--danger);
+      padding: 8px 10px;
+      margin-top: 8px;
+      font-size: 0.7rem;
+    }
+
+    .fraud-log-line {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 4px;
+      align-items: center;
+      color: var(--terminal-magenta);
+    }
+
+    .fraud-log-line:last-child {
+      margin-bottom: 0;
+    }
+
+    .fraud-log-level {
+      font-weight: bold;
+      flex-shrink: 0;
+      color: var(--danger);
+    }
+
+    .fraud-log-level i {
+      color: var(--danger);
+    }
+
+    .fraud-log-message i {
+      color: var(--danger);
+    }
+
+    /* PERFIL */
+    .stat-line {
+      padding: 5px 0;
+      font-size: 0.85rem;
+      color: var(--terminal-fg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stat-line i {
+      width: 18px;
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    .stat-line .fa-trophy { color: var(--warning); }
+    .stat-line .fa-skull { color: var(--danger); }
+    .stat-line .fa-gamepad { color: var(--terminal-purple); }
+
+    .stat-value {
+      font-weight: bold;
+      margin-left: auto;
+      color: var(--terminal-fg);
+    }
+
+    /* PROGRESS */
+    .progress {
+      width: 100%;
+      height: 6px;
+      background: var(--border-color);
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      margin: 2px 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--success);
+      transition: width 0.3s ease;
+    }
+
+    .progress-label {
+      font-size: 0.7rem;
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 4px;
+    }
+
+    .progress-label i {
+      color: var(--success);
+      font-size: 0.7rem;
+    }
+
+    /* TABELA */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .table th {
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--primary);
+      text-transform: uppercase;
+      font-size: 0.65rem;
+      padding: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .table th i {
+      margin-right: 4px;
+      color: var(--primary);
+      font-size: 0.6rem;
+    }
+
+    .table td {
+      padding: 6px;
+      border-bottom: 1px solid rgba(85, 81, 105, 0.3);
+      color: var(--terminal-fg);
+      font-size: 0.75rem;
+    }
+
+    .table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .table tr:hover td:first-child {
+      color: var(--primary);
+    }
+
+    .text-fraud { color: var(--danger); }
+    .text-clean { color: var(--success); }
+
+    /* CURSOR */
+    .has-terminal-cursor::after {
+      content: "▋";
+      animation: cursor-blink 1s step-end infinite;
+      color: var(--primary);
+    }
+
+    @keyframes cursor-blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: var(--terminal-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); }
+
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-<div class="header">
-  <div style="color:var(--yellow); font-weight:bold;">⚡ VG BR</div>
-  <div id="online-count" style="font-size:12px;">0 online</div>
-</div>
-<div class="tabs">
-  <div class="tab active" onclick="showPage('lobby')">SAGUÃO</div>
-  <div class="tab" onclick="showPage('profile')">PERFIL</div>
-  <div class="tab" onclick="showPage('ranking')">RANKING</div>
-</div>
+<div class="screen">
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <i class="fa-solid fa-gamepad"></i> VG-MATCH
+    </div>
+    <div class="server-status" id="server-status">
+      <span class="status-online">
+        <i class="fa-solid fa-circle"></i> <span id="online-count">0</span> online
+      </span>
+      <span class="status-searching">
+        <i class="fa-solid fa-magnifying-glass"></i> <span id="searching-count">0</span> buscando
+      </span>
+      <span class="status-playing">
+        <i class="fa-solid fa-play"></i> <span id="playing-count">0</span> jogando
+      </span>
+    </div>
+  </nav>
 
-<div id="lobby" class="page active">
-  <div class="player-info">
-    <div id="me-nick" class="player-nick">...</div>
-    <div id="me-fc" class="player-fc">...</div>
-    <div id="me-fraud" class="fraud-alert"></div>
-  </div>
-  
-  <div style="margin-bottom: 30px;">
-    <div class="queue-item">
-      <span class="queue-label">🎯 3v3 Ranked</span>
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <span id="queue-3v3-count" class="queue-count">0/6</span>
-        <div id="queue-3v3-searching" class="queue-searching" style="display: none;">
-          <span class="searching-dot"></span>
-          <span>buscando</span>
+  <!-- TABS -->
+  <ul class="tabs">
+    <li class="is-active" onclick="showPage('lobby', this)">
+      <a><i class="fa-solid fa-door-open"></i> Saguão</a>
+    </li>
+    <li onclick="showPage('profile', this)">
+      <a><i class="fa-solid fa-id-card"></i> Perfil</a>
+    </li>
+    <li onclick="showPage('ranking', this)">
+      <a><i class="fa-solid fa-ranking-star"></i> Classificação</a>
+    </li>
+  </ul>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- LOBBY PAGE -->
+    <div id="lobby" style="display:flex;flex-direction:column;flex:1;">
+      <!-- Player Info -->
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-circle-info"></i> Informações do Jogador
+        </div>
+        <div id="me-nick" class="player-nick">
+          <i class="fa-solid fa-user"></i> Carregando...
+        </div>
+        <div id="me-fc" class="player-fc">
+          <i class="fa-solid fa-id-card"></i> 0000-0000-0000
+        </div>
+        <div id="me-fraud-badge" class="fraud-badge hidden">
+          <i class="fa-solid fa-triangle-exclamation"></i> Fraude detectada (7 dias)
+        </div>
+      </div>
+
+      <!-- Espaço vago -->
+      <div class="spacer"></div>
+
+      <!-- Filas -->
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-magnifying-glass"></i> Status da Fila
+        </div>
+        <div class="queue-row">
+          <span class="queue-label">
+            <i class="fa-solid fa-bullseye"></i> 3v3
+          </span>
+          <span class="queue-count" id="queue-3v3-count">0/6</span>
+          <span id="queue-3v3-searching" class="queue-searching hidden">
+            <i class="fa-solid fa-spinner fa-spin"></i> buscando
+          </span>
+        </div>
+        <div class="queue-row">
+          <span class="queue-label">
+            <i class="fa-solid fa-fire"></i> 5v5
+          </span>
+          <span class="queue-count" id="queue-5v5-count">0/10</span>
+          <span id="queue-5v5-searching" class="queue-searching hidden">
+            <i class="fa-solid fa-spinner fa-spin"></i> buscando
+          </span>
+        </div>
+      </div>
+
+      <!-- Botões -->
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-bolt"></i> Ações Rápidas
+        </div>
+        <div class="btn-row">
+          <button class="button is-success" onclick="joinQueue('3v3')">
+            <i class="fa-solid fa-play"></i> 3v3
+          </button>
+          <button class="button is-info" onclick="joinQueue('5v5')">
+            <i class="fa-solid fa-play"></i> 5v5
+          </button>
+        </div>
+        <button class="button is-danger is-fullwidth" onclick="leaveQueue()">
+          <i class="fa-solid fa-stop"></i> Sair da Fila
+        </button>
+
+        <!-- Log de Fraudes -->
+        <div id="exposed-section" class="fraud-log hidden">
+          <div class="fraud-log-line">
+            <span class="fraud-log-level">
+              <i class="fa-solid fa-circle-exclamation"></i> [ERRO]
+            </span>
+            <span class="fraud-log-message">FRAUDE_DETECTADA</span>
+          </div>
+          <div id="exposed-list"></div>
         </div>
       </div>
     </div>
-    <div class="queue-item">
-      <span class="queue-label">🔥 5v5 Casual</span>
-      <div style="display: flex; align-items: center; gap: 15px;">
-        <span id="queue-5v5-count" class="queue-count">0/10</span>
-        <div id="queue-5v5-searching" class="queue-searching" style="display: none;">
-          <span class="searching-dot"></span>
-          <span>buscando</span>
+
+    <!-- PERFIL PAGE -->
+    <div id="profile" class="hidden">
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-id-card"></i> Perfil do Usuário
+        </div>
+        <div id="prof-nick" class="player-nick">
+          <i class="fa-solid fa-user"></i> ...
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-chart-simple"></i> Desempenho
+        </div>
+        <div id="prof-stats"></div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-percent"></i> Taxa de Vitórias
+        </div>
+        <div class="progress">
+          <div id="winrate-bar" class="progress-bar" style="width:0%;"></div>
+        </div>
+        <div class="progress-label" id="winrate-label">
+          <i class="fa-solid fa-chart-line"></i> 0%
         </div>
       </div>
     </div>
-  </div>
-  
-  <button class="btn btn-green" onclick="joinQueue('3v3')">ENTRAR 3v3 RANKED</button>
-  <button class="btn btn-blue" onclick="joinQueue('5v5')">ENTRAR 5v5 CASUAL</button>
-  <button class="btn btn-red" onclick="leaveQueue()">SAIR DA FILA</button>
 
-  <div id="exposed-section" class="exposed-box" style="display: none;">
-    <div class="exposed-title">💀 Jogadores Expostos por Fraude</div>
-    <div id="exposed-list" class="exposed-list"></div>
-  </div>
-</div>
+    <!-- RANKING PAGE -->
+    <div id="ranking" class="hidden">
+      <div class="section-box">
+        <div class="section-header">
+          <i class="fa-solid fa-trophy"></i> Classificação
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th><i class="fa-solid fa-hashtag"></i> POS</th>
+              <th><i class="fa-solid fa-user"></i> NICK</th>
+              <th><i class="fa-solid fa-id-card"></i> FC</th>
+              <th><i class="fa-solid fa-shield-halved"></i> STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="rank-list"></tbody>
+        </table>
+      </div>
+    </div>
 
-<div id="profile" class="page">
-  <div class="player-info">
-    <div id="prof-nick" class="player-nick">...</div>
-    <div id="prof-stats" style="color:var(--white); margin-top:10px;"></div>
+    <span class="has-terminal-cursor"></span>
   </div>
-</div>
-
-<div id="ranking" class="page">
-  <div id="rank-list"></div>
 </div>
 
 <script>
-const tg = window.Telegram.WebApp;
-const socket = io();
-const USER_ID = tg.initDataUnsafe.user?.id || 123;
+  const tg = window.Telegram.WebApp;
+  const socket = io();
+  const USER_ID = tg.initDataUnsafe.user?.id || 123;
 
-let playerStatus = { inQueue3v3: false, inQueue5v5: false };
+  let playerStatus = { inQueue3v3: false, inQueue5v5: false };
 
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  event.target.classList.add('active');
-}
+  function showPage(id, el) {
+    document.getElementById('lobby').classList.add('hidden');
+    document.getElementById('profile').classList.add('hidden');
+    document.getElementById('ranking').classList.add('hidden');
+    document.getElementById(id).classList.remove('hidden');
 
-socket.on('state_update', (state) => {
-  document.getElementById('online-count').innerText = `${state.online} online`;
-  document.getElementById('queue-3v3-count').innerText = `${state.queue3v3}/6`;
-  document.getElementById('queue-5v5-count').innerText = `${state.queue5v5}/10`;
-  
-  document.getElementById('queue-3v3-searching').style.display = playerStatus.inQueue3v3 ? 'flex' : 'none';
-  document.getElementById('queue-5v5-searching').style.display = playerStatus.inQueue5v5 ? 'flex' : 'none';
-  
-  // Lista de expostos
-  if (state.exposed && state.exposed.length > 0) {
-    document.getElementById('exposed-section').style.display = 'block';
-    document.getElementById('exposed-list').innerText = state.exposed.map(t => t.nick).join(', ');
-  } else {
-    document.getElementById('exposed-section').style.display = 'none';
+    if (id === 'lobby') {
+      document.getElementById('lobby').style.display = 'flex';
+      document.getElementById('lobby').style.flexDirection = 'column';
+      document.getElementById('lobby').style.flex = '1';
+    }
+
+    document.querySelectorAll('.tabs li').forEach(t => t.classList.remove('is-active'));
+    el.closest('li').classList.add('is-active');
   }
 
-  const rankList = document.getElementById('rank-list');
-  rankList.innerHTML = state.ranking.map(p => `
-    <div class="rank-row">
-      <span>#${p.pos} ${p.nick} ${p.fraud ? '💀' : ''}</span>
-      <span style="color:var(--yellow)">${p.fc}</span>
-    </div>
-  `).join('');
-});
+  socket.on('state_update', (state) => {
+    document.getElementById('online-count').innerText = state.online || 0;
+    document.getElementById('searching-count').innerText = (state.queue3v3 || 0) + (state.queue5v5 || 0);
+    document.getElementById('playing-count').innerText = state.playing || 0;
 
-async function loadPlayer() {
-  const r = await fetch(`/api/player/${USER_ID}`);
-  const p = await r.json();
-  document.getElementById('me-nick').innerText = p.nick;
-  document.getElementById('me-fc').innerText = p.fc;
-  document.getElementById('me-fraud').innerText = p.fraud ? '⚠️ VOCÊ ESTÁ EXPOSTO POR FRAUDE (7 DIAS)' : '';
-  playerStatus.inQueue3v3 = p.inQueue3v3;
-  playerStatus.inQueue5v5 = p.inQueue5v5;
-  document.getElementById('prof-nick').innerText = p.nick;
-  document.getElementById('prof-stats').innerHTML = `Vitórias: ${p.wins}<br>Derrotas: ${p.losses}<br>Total: ${p.games}`;
-}
+    document.getElementById('queue-3v3-count').innerText = `${state.queue3v3}/6`;
+    document.getElementById('queue-5v5-count').innerText = `${state.queue5v5}/10`;
 
-async function joinQueue(mode) {
-  const r = await fetch('/api/queue/join', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ telegramId: USER_ID, mode })
+    const s3 = document.getElementById('queue-3v3-searching');
+    const s5 = document.getElementById('queue-5v5-searching');
+    s3.classList.toggle('hidden', !playerStatus.inQueue3v3);
+    s5.classList.toggle('hidden', !playerStatus.inQueue5v5);
+
+    const expSec = document.getElementById('exposed-section');
+    const expList = document.getElementById('exposed-list');
+    if (state.exposed && state.exposed.length > 0) {
+      expSec.classList.remove('hidden');
+      expList.innerHTML = state.exposed.map(t =>
+        `<div class="fraud-log-line">
+          <span class="fraud-log-level"><i class="fa-solid fa-skull"></i></span>
+          <span class="fraud-log-message">${t.nick} — FC: ${t.fc || 'N/A'}</span>
+        </div>`
+      ).join('');
+    } else {
+      expSec.classList.add('hidden');
+    }
+
+    const rankList = document.getElementById('rank-list');
+    rankList.innerHTML = state.ranking.map(p => `
+      <tr>
+        <td>
+          ${p.pos === 1 ? '<i class="fa-solid fa-medal" style="color:#ffd700;"></i>' :
+            p.pos === 2 ? '<i class="fa-solid fa-medal" style="color:#c0c0c0;"></i>' :
+            p.pos === 3 ? '<i class="fa-solid fa-medal" style="color:#cd7f32;"></i>' :
+            `#${p.pos}`}
+        </td>
+        <td>${p.nick}</td>
+        <td style="color:var(--warning);">${p.fc}</td>
+        <td class="${p.fraud ? 'text-fraud' : 'text-clean'}">
+          ${p.fraud ?
+            '<i class="fa-solid fa-triangle-exclamation"></i> FRAUDE' :
+            '<i class="fa-solid fa-circle-check"></i> LIMPO'}
+        </td>
+      </tr>
+    `).join('');
   });
-  if (r.ok) playerStatus[mode === '3v3' ? 'inQueue3v3' : 'inQueue5v5'] = true;
-}
 
-async function leaveQueue() {
-  await fetch('/api/queue/leave', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ telegramId: USER_ID })
-  });
-  playerStatus.inQueue3v3 = false;
-  playerStatus.inQueue5v5 = false;
-}
+  async function loadPlayer() {
+    const r = await fetch(`/api/player/${USER_ID}`);
+    const p = await r.json();
 
-loadPlayer();
-tg.expand();
+    document.getElementById('me-nick').innerHTML = `<i class="fa-solid fa-user"></i> ${p.nick}`;
+    document.getElementById('me-fc').innerHTML = `<i class="fa-solid fa-id-card"></i> ${p.fc}`;
+
+    const fraudBadge = document.getElementById('me-fraud-badge');
+    if (p.fraud) {
+      fraudBadge.classList.remove('hidden');
+    } else {
+      fraudBadge.classList.add('hidden');
+    }
+
+    playerStatus.inQueue3v3 = p.inQueue3v3;
+    playerStatus.inQueue5v5 = p.inQueue5v5;
+
+    document.getElementById('prof-nick').innerHTML = `<i class="fa-solid fa-user"></i> ${p.nick}`;
+    document.getElementById('prof-stats').innerHTML = `
+      <div class="stat-line">
+        <i class="fa-solid fa-trophy"></i> Vitórias
+        <span class="stat-value">${p.wins}</span>
+      </div>
+      <div class="stat-line">
+        <i class="fa-solid fa-skull"></i> Derrotas
+        <span class="stat-value">${p.losses}</span>
+      </div>
+      <div class="stat-line">
+        <i class="fa-solid fa-gamepad"></i> Partidas
+        <span class="stat-value">${p.games}</span>
+      </div>
+    `;
+
+    const winrate = p.games > 0 ? Math.round((p.wins / p.games) * 100) : 0;
+    document.getElementById('winrate-bar').style.width = `${winrate}%`;
+    document.getElementById('winrate-label').innerHTML = `<i class="fa-solid fa-chart-line"></i> ${winrate}%`;
+  }
+
+  async function joinQueue(mode) {
+    const r = await fetch('/api/queue/join', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ telegramId: USER_ID, mode })
+    });
+    if (r.ok) playerStatus[mode === '3v3' ? 'inQueue3v3' : 'inQueue5v5'] = true;
+  }
+
+  async function leaveQueue() {
+    await fetch('/api/queue/leave', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ telegramId: USER_ID })
+    });
+    playerStatus.inQueue3v3 = false;
+    playerStatus.inQueue5v5 = false;
+  }
+
+  loadPlayer();
+  tg.expand();
 </script>
 </body>
 </html>
