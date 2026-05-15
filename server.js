@@ -39,29 +39,29 @@ async function getGlobalState() {
         'SELECT nickname, wins, losses, games, vg_index, penalty_until, fraud_penalty_until FROM players WHERE games >= 10 ORDER BY vg_index DESC, games DESC LIMIT 10'
     );
     
-    const { rows: news } = await pg('SELECT content FROM news ORDER BY created_at DESC LIMIT 5');
-    const { rows: events } = await pg('SELECT event_time, content FROM events WHERE expires_at > NOW() ORDER BY expires_at ASC');
+    // Jogadores expostos por fraude (trolls)
+    const { rows: exposedTrolls } = await pg(
+        'SELECT nickname, fraud_penalty_until FROM players WHERE fraud_penalty_until > NOW() LIMIT 20'
+    );
     
-    // Contagem real de jogadores em partida
-    let playersInGame = 0;
-    activeMatches.forEach(m => {
-        playersInGame += (m.teamA.length + m.teamB.length);
-    });
-
     return {
         online:    countOnline(),
         searching: new Set([...queue3v3.map(p => p.id), ...queue5v5.map(p => p.id)]).size,
-        inGame:    playersInGame,
+        inGame:    activeMatches.length,
         queue3v3:  queue3v3.length,
         queue5v5:  queue5v5.length,
-        news:      news.map(n => n.content),
-        events:    events.map(e => ({ time: e.event_time, text: e.content })),
+        matches:   activeMatches.map(m => ({
+            id: m.match_id, mode: m.mode,
+            confirmed: m.confirmations.length,
+            total:     m.teamA.length + m.teamB.length,
+        })),
         ranking: topPlayers.map((p, i) => ({
             pos: i + 1, nick: p.nickname,
             fc: formatFC(p.games, p.vg_index, p.fraud_penalty_until),
             games: p.games, wins: p.wins, losses: p.losses,
             fraud: !!(p.fraud_penalty_until && new Date(p.fraud_penalty_until) > new Date())
-        }))
+        })),
+        exposed: exposedTrolls.map(t => ({ nick: t.nick, until: t.fraud_penalty_until }))
     };
 }
 
@@ -114,8 +114,6 @@ app.post('/api/queue/leave', async (req, res) => {
 // Loop de verificação
 setInterval(async () => {
     await checkExpiringMatches();
-    // Limpar eventos expirados
-    await pg('DELETE FROM events WHERE expires_at <= NOW()');
     await broadcastState();
 }, 30000);
 
