@@ -72,8 +72,9 @@ function setupHandlers(bot) {
     bot.command('relatorio', async (ctx) => {
         console.log(`[BOT] /relatorio recebido de ${ctx.from.id}`);
         try {
+            const isAdminEnv = process.env.ADMIN_TELEGRAM_ID && String(ctx.from.id) === String(process.env.ADMIN_TELEGRAM_ID);
             const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
-            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+            if (!rows[0]?.is_admin && !isAdminEnv) return ctx.reply('Comando restrito a administradores.');
 
             const { rows: reports } = await pg('SELECT * FROM reports WHERE status = "pending" LIMIT 5');
             if (reports.length === 0) return ctx.reply('Nenhum relatório pendente.');
@@ -104,8 +105,9 @@ function setupHandlers(bot) {
     // /news - Adiciona uma notícia
     bot.command('news', async (ctx) => {
         try {
+            const isAdminEnv = process.env.ADMIN_TELEGRAM_ID && String(ctx.from.id) === String(process.env.ADMIN_TELEGRAM_ID);
             const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
-            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+            if (!rows[0]?.is_admin && !isAdminEnv) return ctx.reply('Comando restrito a administradores.');
 
             const content = sanitizeInput(ctx.message.text.split(' ').slice(1).join(' '));
             if (!content) return ctx.reply('Uso: /news Texto da notícia');
@@ -123,8 +125,9 @@ function setupHandlers(bot) {
     // /evento - Adiciona um evento (sintaxe: /evento 00:00-Texto)
     bot.command('evento', async (ctx) => {
         try {
+            const isAdminEnv = process.env.ADMIN_TELEGRAM_ID && String(ctx.from.id) === String(process.env.ADMIN_TELEGRAM_ID);
             const { rows } = await pg('SELECT is_admin FROM players WHERE telegram_id = ?', [ctx.from.id]);
-            if (!rows[0]?.is_admin) return ctx.reply('Comando restrito a administradores.');
+            if (!rows[0]?.is_admin && !isAdminEnv) return ctx.reply('Comando restrito a administradores.');
 
             const input = ctx.message.text.split(' ').slice(1).join(' ');
             const match = input.match(/^(\d{2}:\d{2})-(.+)$/);
