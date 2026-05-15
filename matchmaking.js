@@ -1,12 +1,11 @@
-
-const { pool } = require("./database");
+const { pg } = require("./database");
 
 let queue3v3 = [];
 let queue5v5 = [];
 let activeMatches = [];
 
 async function loadActiveMatches() {
-    const [rows] = await pool.execute("SELECT * FROM active_matches");
+    const { rows } = await pg("SELECT * FROM active_matches");
     activeMatches.length = 0;
     for (const match of rows) {
         activeMatches.push({
@@ -28,8 +27,8 @@ function generateSnipingCode() {
 }
 
 function isPlayerInMatch(id, activeMatches) {
-    return activeMatches.some(m => 
-        m.teamA.some(p => p.id === id) || 
+    return activeMatches.some(m =>
+        m.teamA.some(p => p.id === id) ||
         m.teamB.some(p => p.id === id)
     );
 }
@@ -64,9 +63,9 @@ function returnToQueue(mode, player, priority = false) {
     if (exists) return;
 
     if (priority) {
-        queue.unshift(player); // Início da fila (prioridade)
+        queue.unshift(player);
     } else {
-        queue.push(player); // Final da fila (punição)
+        queue.push(player);
     }
 }
 
@@ -86,14 +85,14 @@ async function createMatch(mode) {
     const teamB = shuffled.slice(half).map(p => ({ ...p, teamNumber: teamNumber === 1 ? 2 : 1 }));
 
     const snipingCode = generateSnipingCode();
-    const [result] = await pool.execute(
+    const { rows } = await pg(
         `INSERT INTO active_matches (sniping_code, mode, team_a_ids, team_b_ids, confirmations, results, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING match_id`,
         [snipingCode, mode, JSON.stringify(teamA), JSON.stringify(teamB), JSON.stringify([]), JSON.stringify({}), new Date().toISOString()]
     );
 
     const match = {
-        match_id: result.insertId,
+        match_id: rows[0].match_id,
         sniping_code: snipingCode,
         mode,
         teamA,
@@ -108,12 +107,11 @@ async function createMatch(mode) {
 }
 
 async function removeActiveMatch(matchId) {
-    await pool.execute("DELETE FROM active_matches WHERE match_id = ?", [matchId]);
+    await pg("DELETE FROM active_matches WHERE match_id = ?", [matchId]);
     const index = activeMatches.findIndex(m => m.match_id === matchId);
     if (index !== -1) activeMatches.splice(index, 1);
 }
 
-// Punição: Jogadores que não confirmam em 2 min vão para o FINAL DA FILA
 async function checkExpiringMatches() {
     const now = new Date();
     const expiredMatches = activeMatches.filter(m => {
@@ -127,15 +125,8 @@ async function checkExpiringMatches() {
         const nonConfirmers = totalPlayers.filter(p => !match.confirmations.includes(p.id));
         const confirmers = totalPlayers.filter(p => match.confirmations.includes(p.id));
 
-        // Punição: Vai para o final da fila
-        for (const player of nonConfirmers) {
-            returnToQueue(match.mode, player, false); 
-        }
-
-        // Justos: Voltam para o início da fila
-        for (const player of confirmers) {
-            returnToQueue(match.mode, player, true);
-        }
+        for (const player of nonConfirmers) returnToQueue(match.mode, player, false);
+        for (const player of confirmers) returnToQueue(match.mode, player, true);
 
         await removeActiveMatch(match.match_id);
     }
@@ -146,3 +137,54 @@ module.exports = {
     addToQueue, removeFromQueue, returnToQueue, createMatch,
     removeActiveMatch, checkExpiringMatches
 };
+
+// ─── FINALIZAR PARTIDA ────────────────────────────────────────────────────────
+const { calculateVGIndex } = require('./ranking');
+
+async function finalizeMatch(match, winnerTeam) {
+    const allPlayers = [...match.teamA, ...match.teamB];
+
+    for (const player of allPlayers) {
+        const isWinner = player.teamNumber === winnerTeam;
+
+        // Atualiza wins/losses/games
+        await pg(
+            `UPDATE players SET
+                wins  = wins  + ?,
+                losses = losses + ?,
+                games = games + 1
+             WHERE telegram_id = ?`,
+            [isWinner ? 1 : 0, isWinner ? 0 : 1, player.id]
+        );
+
+        // Recalcula vg_index com base nos novos totais
+        const { rows } = await pg(
+            'SELECT wins, games FROM players WHERE telegram_id = ?',
+            [player.id]
+        );
+        if (rows[0]) {
+            const newIndex = calculateVGIndex(rows[0].wins, rows[0].games);
+            await pg(
+                'UPDATE players SET vg_index = ? WHERE telegram_id = ?',
+                [newIndex, player.id]
+            );
+        }
+    }
+
+    // Salva no histórico de partidas
+    await pg(
+        `INSERT INTO matches (code, mode, winner_team, created_at, duration_seconds)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+            match.sniping_code,
+            match.mode,
+            String(winnerTeam),
+            match.created_at,
+            match.start_time ? Math.floor((Date.now() - new Date(match.start_time)) / 1000) : 0
+        ]
+    );
+
+    await removeActiveMatch(match.match_id);
+}
+
+module.exports.finalizeMatch = finalizeMatch;

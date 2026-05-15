@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: vg-matchmaking-bot
+    env: node
+    buildCommand: npm install
+    startCommand: node main.js
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBAPP_URL
+        sync: false
+      - key: INTERNAL_SECRET
+        sync: false
+      - key: ADMIN_TELEGRAM_ID
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vg-matchmaking-db
+          property: connectionString
+
+databases:
+  - name: vg-matchmaking-db
+    databaseName: vg_matchmaking
+    user: vg_user
+    plan: free

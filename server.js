@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const path       = require('path');
 const cors       = require('cors');
 
-const { pool } = require(path.join(__dirname, 'database'));
+const { pg } = require(path.join(__dirname, 'database'));
 const { queue3v3, queue5v5, activeMatches, addToQueue, removeFromQueue, checkExpiringMatches } = require(path.join(__dirname, 'matchmaking'));
 
 const app    = express();
@@ -35,12 +35,12 @@ function formatFC(games, vg_index, fraud_penalty_until) {
 }
 
 async function getGlobalState() {
-    const [topPlayers] = await pool.execute(
+    const { rows: topPlayers } = await pg(
         'SELECT nickname, wins, losses, games, vg_index, penalty_until, fraud_penalty_until FROM players WHERE games >= 10 ORDER BY vg_index DESC, games DESC LIMIT 10'
     );
     
     // Jogadores expostos por fraude (trolls)
-    const [exposedTrolls] = await pool.execute(
+    const { rows: exposedTrolls } = await pg(
         'SELECT nickname, fraud_penalty_until FROM players WHERE fraud_penalty_until > NOW() LIMIT 20'
     );
     
@@ -74,7 +74,7 @@ async function broadcastState() {
 app.get('/api/player/:telegramId', async (req, res) => {
     try {
         const uid = Number(req.params.telegramId);
-        const [rows] = await pool.execute('SELECT * FROM players WHERE telegram_id = ?', [uid]);
+        const { rows } = await pg('SELECT * FROM players WHERE telegram_id = ?', [uid]);
         if (!rows[0]) return res.status(404).json({ error: 'not_found' });
         const p = rows[0];
         const isFraud = p.fraud_penalty_until && new Date(p.fraud_penalty_until) > new Date();
@@ -95,7 +95,7 @@ app.post('/api/queue/join', async (req, res) => {
     try {
         const { telegramId, mode } = req.body;
         const uid = Number(telegramId);
-        const [rows] = await pool.execute('SELECT nickname FROM players WHERE telegram_id = ?', [uid]);
+        const { rows } = await pg('SELECT nickname FROM players WHERE telegram_id = ?', [uid]);
         if (!rows[0]) return res.status(404).json({ error: 'not_registered' });
 
         onlineUsers.set(uid, { timestamp: Date.now(), status: 'online' });
